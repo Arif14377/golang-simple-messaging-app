@@ -41,7 +41,7 @@ func Register(ctx fiber.Ctx) error {
 		return response.SendFailureResponse(ctx, fiber.StatusInternalServerError, "failed to register user")
 	}
 
-	userRegistered := dto.NewUserRegister(*user)
+	userRegistered := dto.NewRegisterResponse(*user)
 
 	return response.SendSuccessResponse(ctx, fiber.StatusCreated, "user registered successfully", userRegistered)
 }
