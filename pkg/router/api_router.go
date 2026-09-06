@@ -1,9 +1,9 @@
 package router
 
 import (
+	"github.com/Arif14377/golang-simple-messaging-app/app/controllers"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/limiter"
-	"github.com/kooroshh/fiber-boostrap/app/controllers"
 )
 
 type ApiRouter struct{}

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/kooroshh/fiber-boostrap/bootstrap"
-	"github.com/kooroshh/fiber-boostrap/pkg/env"
+	"github.com/Arif14377/golang-simple-messaging-app/bootstrap"
+	"github.com/Arif14377/golang-simple-messaging-app/pkg/env"
 )
 
 func main() {

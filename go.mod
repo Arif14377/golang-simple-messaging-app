@@ -1,4 +1,4 @@
-module github.com/kooroshh/fiber-boostrap
+module github.com/Arif14377/golang-simple-messaging-app
 
 go 1.25.0
 
