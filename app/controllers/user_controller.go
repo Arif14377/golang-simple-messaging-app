@@ -1,7 +1,9 @@
 package controllers
 
 import (
+	"context"
 	"log"
+	"time"
 
 	"github.com/Arif14377/golang-simple-messaging-app/app/models"
 	"github.com/Arif14377/golang-simple-messaging-app/app/repository"
@@ -31,7 +33,10 @@ func Register(ctx fiber.Ctx) error {
 
 	user.Password = string(hashPassword)
 
-	if err := repository.InsertNewUser(ctx, user); err != nil {
+	cctx, cancel := context.WithTimeout(ctx.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := repository.InsertNewUser(cctx, user); err != nil {
 		log.Printf("failed to insert new user: %v\n", err)
 		return response.SendFailureResponse(ctx, fiber.StatusInternalServerError, "failed to register user")
 	}

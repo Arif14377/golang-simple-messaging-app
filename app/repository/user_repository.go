@@ -8,5 +8,5 @@ import (
 )
 
 func InsertNewUser(ctx context.Context, user *models.User) error {
-	return database.DB.Create(user).Error
+	return database.DB.WithContext(ctx).Create(user).Error
 }
