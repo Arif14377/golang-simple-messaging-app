@@ -35,19 +35,3 @@ type UserSession struct {
 func (l UserSession) Validate() error {
 	return validate.Struct(l)
 }
-
-type LoginRequest struct {
-	Username string `json:"username" validate:"required"`
-	Password string `json:"password" validate:"required"`
-}
-
-func (l LoginRequest) Validate() error {
-	return validate.Struct(l)
-}
-
-type LoginResponse struct {
-	Username     string `json:"username" `
-	FullName     string `json:"full_name" `
-	Token        string `json:"token" `
-	RefreshToken string `json:"refresh_token" `
-}

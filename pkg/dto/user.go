@@ -1,6 +1,11 @@
 package dto
 
-import "github.com/Arif14377/golang-simple-messaging-app/app/models"
+import (
+	"github.com/Arif14377/golang-simple-messaging-app/app/models"
+	"github.com/go-playground/validator/v10"
+)
+
+var validate = validator.New()
 
 type RegisterResponse struct {
 	UserID   uint   `json:"userId"`
@@ -14,4 +19,20 @@ func NewRegisterResponse(data models.User) *RegisterResponse {
 		Username: data.Username,
 		FullName: data.FullName,
 	}
+}
+
+type LoginRequest struct {
+	Username string `json:"username" validate:"required"`
+	Password string `json:"password" validate:"required"`
+}
+
+func (l LoginRequest) Validate() error {
+	return validate.Struct(l)
+}
+
+type LoginResponse struct {
+	Username     string `json:"username" `
+	FullName     string `json:"full_name" `
+	Token        string `json:"token" `
+	RefreshToken string `json:"refresh_token" `
 }
