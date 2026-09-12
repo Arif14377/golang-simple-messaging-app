@@ -1,6 +1,8 @@
 package jwt
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -12,7 +14,7 @@ import (
 )
 
 const (
-	AccessTokenDuration  = 24 * time.Hour
+	AccessTokenDuration  = 15 * time.Minute
 	RefreshTokenDuration = 7 * 24 * time.Hour
 )
 
@@ -64,4 +66,9 @@ func VerifyToken(tokenString string) (*CustomClaims, error) {
 	}
 
 	return claims, nil
+}
+
+func HashToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }

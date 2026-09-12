@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/Arif14377/golang-simple-messaging-app/app/models"
@@ -92,9 +93,8 @@ func Login(ctx fiber.Ctx) error {
 
 	session := models.UserSession{
 		UserID:              user.ID,
-		Token:               token,
-		RefreshToken:        refreshToken,
-		TokenExpired:        time.Now().Add(jwt.AccessTokenDuration),
+		TokenHash:           jwt.HashToken(token),
+		RefreshToken:        jwt.HashToken(refreshToken),
 		RefreshTokenExpired: time.Now().Add(jwt.RefreshTokenDuration),
 	}
 
@@ -112,4 +112,21 @@ func Login(ctx fiber.Ctx) error {
 	}
 
 	return response.SendSuccessResponse(ctx, fiber.StatusOK, "Login successful", loginResponse)
+}
+
+func Logout(ctx fiber.Ctx) error {
+	tokenStr := strings.TrimPrefix(ctx.Get(fiber.HeaderAuthorization), "Bearer ")
+	if tokenStr == "" {
+		return response.SendFailureResponse(ctx, fiber.StatusBadRequest, "Empty header.")
+	}
+
+	cctx, cancel := context.WithTimeout(ctx.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := repository.DeleteSessionByToken(cctx, jwt.HashToken(tokenStr)); err != nil {
+		log.Printf("Failed to delete session: %v\n", err)
+		return response.SendFailureResponse(ctx, fiber.StatusInternalServerError, "Failed to logout")
+	}
+
+	return response.SendSuccessResponse(ctx, fiber.StatusOK, "Logout successful", nil)
 }

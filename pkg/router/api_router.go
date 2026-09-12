@@ -2,6 +2,7 @@ package router
 
 import (
 	"github.com/Arif14377/golang-simple-messaging-app/app/controllers"
+	"github.com/Arif14377/golang-simple-messaging-app/app/middleware"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/limiter"
 )
@@ -20,6 +21,7 @@ func (h ApiRouter) InstallRouter(app *fiber.App) {
 	userV1Group := userGroup.Group("/v1")
 	userV1Group.Post("/register", controllers.Register)
 	userV1Group.Post("/login", controllers.Login)
+	userV1Group.Post("/logout", middleware.Auth, controllers.Logout)
 
 }
 
