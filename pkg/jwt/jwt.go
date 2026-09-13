@@ -1,8 +1,6 @@
 package jwt
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -10,7 +8,6 @@ import (
 	"github.com/Arif14377/golang-simple-messaging-app/app/models"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/env"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 )
 
 const (
@@ -41,10 +38,6 @@ func GenerateToken(user models.User) (token string, err error) {
 	return token, err
 }
 
-func GenerateRefreshToken() (string, error) {
-	return uuid.NewString(), nil
-}
-
 func VerifyToken(tokenString string) (*CustomClaims, error) {
 	secret := env.GetEnv("JWT_SECRET", "secret")
 
@@ -66,9 +59,4 @@ func VerifyToken(tokenString string) (*CustomClaims, error) {
 	}
 
 	return claims, nil
-}
-
-func HashToken(token string) string {
-	sum := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(sum[:])
 }
