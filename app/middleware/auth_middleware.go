@@ -10,6 +10,7 @@ import (
 	"github.com/Arif14377/golang-simple-messaging-app/app/repository"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/jwt"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/response"
+	"github.com/Arif14377/golang-simple-messaging-app/pkg/token"
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
 )
@@ -36,7 +37,7 @@ func Auth(ctx fiber.Ctx) error {
 	}
 
 	// cek session
-	tokenHash := jwt.HashToken(tokenStr)
+	tokenHash := token.HashToken(tokenStr)
 
 	cctx, cancel := context.WithTimeout(ctx.Context(), 5*time.Second)
 	defer cancel()
