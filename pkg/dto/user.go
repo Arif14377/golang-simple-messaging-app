@@ -36,3 +36,16 @@ type LoginResponse struct {
 	Token        string `json:"token" `
 	RefreshToken string `json:"refresh_token" `
 }
+
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" validate:"required"`
+}
+
+func (l RefreshTokenRequest) Validate() error {
+	return validate.Struct(l)
+}
+
+type RefreshTokenResponse struct {
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
+}
