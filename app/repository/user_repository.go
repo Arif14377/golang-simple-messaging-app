@@ -20,3 +20,13 @@ func FindUserByUsername(ctx context.Context, username string) (models.User, erro
 
 	return user, nil
 }
+
+func FindUserByID(ctx context.Context, id uint) (models.User, error) {
+	var user models.User
+	err := database.DB.WithContext(ctx).First(&user, id).Error
+	if err != nil {
+		return user, err
+	}
+
+	return user, nil
+}
