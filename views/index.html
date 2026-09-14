@@ -1,10 +1,211 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <title>Hello From Fiber</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Messaging App</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body,
+    html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+    }
+
+    #dashboard {
+      display: none;
+      height: 100%;
+      flex-direction: column;
+    }
+
+    ul {
+      list-style-type: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    li {
+      padding: 8px 10px;
+      margin: 5px 0;
+      background-color: #fff;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    button {
+      padding: 10px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    button:hover {
+      background-color: #45a049;
+    }
+
+    #login-form {
+      padding: 20px;
+      max-width: 400px;
+      margin: 50px auto;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      background-color: #fff;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+  </style>
 </head>
+
 <body>
-  {{ .FiberTitle }}
+
+  <div id="login-form">
+    <h2 id="login-status">Please log in</h2>
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+  </div>
+
+  <div id="dashboard">
+    <h2>Welcome to the simple messaging app!</h2>
+    <button onclick="logout()">Logout</button>
+  </div>
+
+  <script>
+
+    // Check if JWT is stored in sessionStorage
+    document.addEventListener('DOMContentLoaded', function() {
+      if ('Notification' in window) {
+        if (Notification.permission === 'granted') {
+          console.log("Notification permission already granted.");
+        } else if (Notification.permission !== 'denied') {
+          Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+              console.log("Notification permission granted.");
+            }
+          });
+        }
+      } else {
+        console.log('This browser does not support notifications.');
+      }
+      
+      const storedToken = sessionStorage.getItem('jwtToken');
+      if (storedToken) {
+        showDashboard();
+      }
+    });
+
+    // Login function
+    function login() {
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      fetch('/user/v1/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username, password })
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log("data success:", data.success)
+        console.log("token:", data.data.token)
+        if (data.success && data.data.token) {
+          sessionStorage.setItem('jwtToken', data.data.token);
+          sessionStorage.setItem('refreshToken', data.data.refreshToken);
+          sessionStorage.setItem('username', data.data.username);
+          sessionStorage.setItem('fullname', data.data.fullName);
+          document.getElementById('login-status').innerText = 'Login successful!';
+          showDashboard();
+        } else {
+          document.getElementById('login-status').innerText = 'Login failed!';
+        }
+      })
+      .catch(err => {
+        document.getElementById('login-status').innerText = 'Error during login';
+      });
+    }
+
+    // Logout function
+  async function logout() {
+    try {
+      let res = await fetch('/user/v1/logout', {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + sessionStorage.getItem('jwtToken') }
+      });
+
+      // access token kedaluwarsa → refresh SEKALI, lalu ulangi logout
+      if (res.status === 401) {
+        const ok = await refreshToken();
+        if (!ok) {                     // refresh token juga mati → sesi sudah tidak valid
+          clearSession();
+          window.alert('Sesi sudah berakhir, silakan login lagi.');
+          location.reload();
+          return;
+        }
+        res = await fetch('/user/v1/logout', {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + sessionStorage.getItem('jwtToken') }
+        });
+      }
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        clearSession();
+        window.alert('Logout successful!');
+        location.reload();
+      } else {
+        window.alert('Logout failed: ' + (data.message ?? res.status));
+      }
+    } catch (err) {
+      console.error(err);
+      window.alert('Logout failed!');
+    }
+  }
+
+  // refresh token function
+  async function refreshToken() {
+    const res = await fetch('/user/v1/refresh-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: sessionStorage.getItem('refreshToken') })
+    });
+    if (!res.ok) return false;                       // 401 = refresh token mati
+    const data = await res.json();
+    if (!data.success || !data.data.token) return false;
+
+    sessionStorage.setItem('jwtToken', data.data.token);
+    sessionStorage.setItem('refreshToken', data.data.refreshToken);  // WAJIB: rotasi
+    return true;
+  }
+
+  function clearSession() {
+    ['jwtToken', 'refreshToken', 'username', 'fullname']
+      .forEach(k => sessionStorage.removeItem(k));
+  }
+
+    // Function to show the dashboard
+    function showDashboard() {
+      document.getElementById('login-form').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'flex';
+    }
+  </script>
 </body>
+
 </html>

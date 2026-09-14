@@ -21,8 +21,8 @@ func (h ApiRouter) InstallRouter(app *fiber.App) {
 	userV1Group := userGroup.Group("/v1")
 	userV1Group.Post("/register", controllers.Register)
 	userV1Group.Post("/login", controllers.Login)
-	userV1Group.Post("/logout", middleware.Auth, controllers.Logout)
-	userV1Group.Put("/refresh-token", controllers.RefreshToken)
+	userV1Group.Delete("/logout", middleware.Auth, controllers.Logout)
+	userV1Group.Post("/refresh-token", controllers.RefreshToken)
 
 }
 

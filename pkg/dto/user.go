@@ -32,13 +32,13 @@ func (l LoginRequest) Validate() error {
 
 type LoginResponse struct {
 	Username     string `json:"username" `
-	FullName     string `json:"full_name" `
+	FullName     string `json:"fullName" `
 	Token        string `json:"token" `
-	RefreshToken string `json:"refresh_token" `
+	RefreshToken string `json:"refreshToken" `
 }
 
 type RefreshTokenRequest struct {
-	RefreshToken string `json:"refresh_token" validate:"required"`
+	RefreshToken string `json:"refreshToken" validate:"required"`
 }
 
 func (l RefreshTokenRequest) Validate() error {
@@ -47,5 +47,5 @@ func (l RefreshTokenRequest) Validate() error {
 
 type RefreshTokenResponse struct {
 	Token        string `json:"token"`
-	RefreshToken string `json:"refresh_token"`
+	RefreshToken string `json:"refreshToken"`
 }

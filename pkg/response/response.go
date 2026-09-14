@@ -9,8 +9,8 @@ type SuccessResponse struct {
 }
 
 type FailureResponse struct {
-	Success bool
-	Message string
+	Success bool   `json:"success"`
+	Message string `json:"message"`
 }
 
 func SendSuccessResponse(ctx fiber.Ctx, statusCode int, message string, data any) error {
