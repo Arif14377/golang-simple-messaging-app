@@ -6,6 +6,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Simple Messaging App</title>
   <style>
+    :root {
+      --brand: #4f46e5;
+      --brand-dark: #4338ca;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #d1d5db;
+    }
+
     * {
       box-sizing: border-box;
     }
@@ -14,14 +22,189 @@
     html {
       margin: 0;
       padding: 0;
-      height: 100%;
-      font-family: Arial, sans-serif;
+      min-height: 100%;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: var(--text);
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 55%, #ec4899 100%);
+      background-attachment: fixed;
     }
 
+    /* ---------- Auth (login / register) ---------- */
+    .auth-wrapper {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .auth-card {
+      width: 100%;
+      max-width: 420px;
+      padding: 32px;
+      background-color: #fff;
+      border-radius: 16px;
+      box-shadow: 0 20px 45px rgba(15, 23, 42, 0.25);
+      animation: fade-in 0.35s ease;
+    }
+
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .auth-card h2 {
+      margin: 0 0 4px;
+      font-size: 24px;
+    }
+
+    .subtitle {
+      margin: 0 0 22px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      font-size: 15px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      transition: border-color .15s, box-shadow .15s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, .18);
+    }
+
+    button {
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+      background-color: var(--brand);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background-color .15s, transform .05s;
+    }
+
+    button:hover {
+      background-color: var(--brand-dark);
+    }
+
+    button:active {
+      transform: scale(.99);
+    }
+
+    button:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .switch {
+      margin: 18px 0 0;
+      text-align: center;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .switch a {
+      color: var(--brand);
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .switch a:hover {
+      text-decoration: underline;
+    }
+
+    .alert {
+      display: none;
+      margin-bottom: 16px;
+      padding: 10px 14px;
+      font-size: 14px;
+      border-radius: 10px;
+    }
+
+    .alert.show {
+      display: block;
+    }
+
+    .alert.error {
+      color: #b91c1c;
+      background-color: #fef2f2;
+      border: 1px solid #fecaca;
+    }
+
+    .alert.success {
+      color: #047857;
+      background-color: #ecfdf5;
+      border: 1px solid #a7f3d0;
+    }
+
+    /* ---------- Dashboard ---------- */
     #dashboard {
       display: none;
-      height: 100%;
+      min-height: 100vh;
       flex-direction: column;
+      background-color: #f8fafc;
+    }
+
+    #dashboard header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 24px;
+      background-color: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      box-shadow: 0 1px 4px rgba(15, 23, 42, .06);
+    }
+
+    #dashboard header h1 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    #dashboard header p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    #logout-btn {
+      width: auto;
+      padding: 9px 18px;
+      font-size: 14px;
+      background-color: #ef4444;
+    }
+
+    #logout-btn:hover {
+      background-color: #dc2626;
+    }
+
+    #dashboard main {
+      width: 100%;
+      max-width: 720px;
+      flex: 1;
+      margin: 0 auto;
+      padding: 24px;
     }
 
     ul {
@@ -38,55 +221,119 @@
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
 
-    button {
-      padding: 10px 15px;
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 16px;
-    }
-
-    button:hover {
-      background-color: #45a049;
-    }
-
-    #login-form {
-      padding: 20px;
-      max-width: 400px;
-      margin: 50px auto;
-      border: 1px solid #ccc;
-      border-radius: 10px;
-      background-color: #fff;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    }
-
-    input {
-      width: 100%;
-      padding: 10px;
-      margin: 10px 0;
-      border: 1px solid #ccc;
-      border-radius: 4px;
+    @media (max-width: 480px) {
+      .auth-card {
+        padding: 24px 20px;
+      }
     }
   </style>
 </head>
 
 <body>
 
-  <div id="login-form">
-    <h2 id="login-status">Please log in</h2>
-    <input type="text" id="username" placeholder="Username">
-    <input type="password" id="password" placeholder="Password">
-    <button onclick="login()">Login</button>
+  <div class="auth-wrapper" id="auth">
+    <div class="auth-card">
+      <div id="alert" class="alert"></div>
+
+      <!-- ================= Login ================= -->
+      <div id="login-form">
+        <h2>Welcome back</h2>
+        <p class="subtitle">Sign in to continue to the messaging app.</p>
+
+        <div class="field">
+          <label for="login-username">Username</label>
+          <input type="text" id="login-username" placeholder="your username" autocomplete="username">
+        </div>
+
+        <div class="field">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" placeholder="Your password" autocomplete="current-password">
+        </div>
+
+        <button id="login-btn" onclick="login()">Login</button>
+
+        <p class="switch">
+          Don't have an account?
+          <a href="#" onclick="showRegister(); return false;">Register here</a>
+        </p>
+      </div>
+
+      <!-- ================= Register ================= -->
+      <div id="register-form" style="display:none;">
+        <h2>Create account</h2>
+        <p class="subtitle">It only takes a few seconds.</p>
+
+        <div class="field">
+          <label for="register-fullname">Full name</label>
+          <input type="text" id="register-fullname" placeholder="Your full name" autocomplete="name">
+        </div>
+
+        <div class="field">
+          <label for="register-username">Username</label>
+          <input type="text" id="register-username" placeholder="Min. 6 characters" autocomplete="username">
+        </div>
+
+        <div class="field">
+          <label for="register-password">Password</label>
+          <input type="password" id="register-password" placeholder="Min. 6 characters" autocomplete="new-password">
+        </div>
+
+        <button id="register-btn" onclick="register()">Register</button>
+
+        <p class="switch">
+          Already have an account?
+          <a href="#" onclick="showLogin(); return false;">Login here</a>
+        </p>
+      </div>
+    </div>
   </div>
 
   <div id="dashboard">
-    <h2>Welcome to the simple messaging app!</h2>
-    <button onclick="logout()">Logout</button>
+    <header>
+      <div>
+        <h1>Simple Messaging App</h1>
+        <p id="dashboard-user"></p>
+      </div>
+      <button id="logout-btn" onclick="logout()">Logout</button>
+    </header>
+
+    <main>
+      <ul id="messages"></ul>
+    </main>
   </div>
 
   <script>
+
+    const $ = (id) => document.getElementById(id);
+
+    function setAlert(message, type) {
+      const el = $('alert');
+      el.classList.remove('show', 'error', 'success');
+      el.textContent = message || '';
+      if (message) {
+        el.classList.add('show', type || 'error');
+      }
+    }
+
+    // Tampilkan panel login (dipakai juga oleh link "Login here")
+    function showLogin() {
+      $('auth').style.display = 'flex';
+      $('login-form').style.display = 'block';
+      $('register-form').style.display = 'none';
+      $('dashboard').style.display = 'none';
+      setAlert('');
+      $('login-username').focus();
+    }
+
+    // Tampilkan panel register (dipakai oleh link "Register here")
+    function showRegister() {
+      $('auth').style.display = 'flex';
+      $('login-form').style.display = 'none';
+      $('register-form').style.display = 'block';
+      $('dashboard').style.display = 'none';
+      setAlert('');
+      $('register-fullname').focus();
+    }
 
     // Check if JWT is stored in sessionStorage
     document.addEventListener('DOMContentLoaded', function() {
@@ -103,43 +350,105 @@
       } else {
         console.log('This browser does not support notifications.');
       }
-      
-      const storedToken = sessionStorage.getItem('jwtToken');
-      if (storedToken) {
+
+      if (sessionStorage.getItem('jwtToken')) {
         showDashboard();
+      } else {
+        showLogin();
       }
     });
 
-    // Login function
-    function login() {
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
+    // Register function
+    async function register() {
+      const fullName = $('register-fullname').value.trim();
+      const username = $('register-username').value.trim();
+      const password = $('register-password').value;
 
-      fetch('/user/v1/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ username, password })
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log("data success:", data.success)
-        console.log("token:", data.data.token)
-        if (data.success && data.data.token) {
+      if (!fullName || !username || !password) {
+        setAlert('All fields are required.');
+        return;
+      }
+      if (username.length < 6) {
+        setAlert('Username must be at least 6 characters.');
+        return;
+      }
+      if (fullName.length < 6) {
+        setAlert('Full name must be at least 6 characters.');
+        return;
+      }
+      if (password.length < 6) {
+        setAlert('Password must be at least 6 characters.');
+        return;
+      }
+
+      const btn = $('register-btn');
+      btn.disabled = true;
+      setAlert('');
+
+      try {
+        const response = await fetch('/user/v1/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ username, fullName, password })
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          showLogin();
+          $('login-username').value = username;
+          setAlert('Registration successful! Please log in.', 'success');
+        } else {
+          setAlert(data.message ?? 'Registration failed.');
+        }
+      } catch (err) {
+        console.error(err);
+        setAlert('Unable to reach the server.');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // Login function
+    async function login() {
+      const username = $('login-username').value.trim();
+      const password = $('login-password').value;
+
+      if (!username || !password) {
+        setAlert('Username and password are required.');
+        return;
+      }
+
+      const btn = $('login-btn');
+      btn.disabled = true;
+      setAlert('');
+
+      try {
+        const response = await fetch('/user/v1/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success && data.data?.token) {
           sessionStorage.setItem('jwtToken', data.data.token);
           sessionStorage.setItem('refreshToken', data.data.refreshToken);
           sessionStorage.setItem('username', data.data.username);
           sessionStorage.setItem('fullname', data.data.fullName);
-          document.getElementById('login-status').innerText = 'Login successful!';
           showDashboard();
         } else {
-          document.getElementById('login-status').innerText = 'Login failed!';
+          setAlert(data.message ?? 'Login failed!');
         }
-      })
-      .catch(err => {
-        document.getElementById('login-status').innerText = 'Error during login';
-      });
+      } catch (err) {
+        console.error(err);
+        setAlert('Unable to reach the server.');
+      } finally {
+        btn.disabled = false;
+      }
     }
 
     // Logout function
@@ -202,8 +511,15 @@
 
     // Function to show the dashboard
     function showDashboard() {
-      document.getElementById('login-form').style.display = 'none';
-      document.getElementById('dashboard').style.display = 'flex';
+      $('auth').style.display = 'none';
+      $('dashboard').style.display = 'flex';
+      setAlert('');
+
+      const fullName = sessionStorage.getItem('fullname') || '';
+      const username = sessionStorage.getItem('username') || '';
+      $('dashboard-user').textContent = fullName
+        ? `Signed in as ${fullName} (@${username})`
+        : 'Signed in';
     }
   </script>
 </body>
