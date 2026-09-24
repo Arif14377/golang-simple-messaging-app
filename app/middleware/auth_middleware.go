@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/Arif14377/golang-simple-messaging-app/app/repository"
+	"github.com/Arif14377/golang-simple-messaging-app/pkg/cookie"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/jwt"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/response"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/token"
@@ -16,19 +16,11 @@ import (
 )
 
 func Auth(ctx fiber.Ctx) error {
-	// ambil header authorization
-	header := ctx.Get(fiber.HeaderAuthorization)
-	if header == "" {
-		return response.SendFailureResponse(ctx, fiber.StatusUnauthorized, "Missing authorization header")
+	// ambil access token dari cookie (fallback: header "Authorization: Bearer ...")
+	tokenStr := cookie.AccessTokenFromRequest(ctx)
+	if tokenStr == "" {
+		return response.SendFailureResponse(ctx, fiber.StatusUnauthorized, "Missing authentication token")
 	}
-
-	// validasi format "Bearer <token>"
-	parts := strings.Split(header, " ")
-	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-		return response.SendFailureResponse(ctx, fiber.StatusUnauthorized, "Invalid authorization format")
-	}
-
-	tokenStr := parts[1]
 
 	// verify/validasi token.
 	claims, err := jwt.VerifyToken(tokenStr)
