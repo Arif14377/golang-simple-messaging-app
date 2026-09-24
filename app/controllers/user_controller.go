@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/Arif14377/golang-simple-messaging-app/app/models"
 	"github.com/Arif14377/golang-simple-messaging-app/app/repository"
+	"github.com/Arif14377/golang-simple-messaging-app/pkg/cookie"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/dto"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/jwt"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/response"
@@ -114,13 +114,18 @@ func Login(ctx fiber.Ctx) error {
 		RefreshToken: refreshToken,
 	}
 
+	// simpan token ke cookie HttpOnly (dikelola server, tidak bisa dibaca JavaScript)
+	cookie.SetAuth(ctx, tokenStr, refreshToken, jwt.AccessTokenDuration, jwt.RefreshTokenDuration)
+
 	return response.SendSuccessResponse(ctx, fiber.StatusOK, "Login successful", loginResponse)
 }
 
 func Logout(ctx fiber.Ctx) error {
-	tokenStr := strings.TrimPrefix(ctx.Get(fiber.HeaderAuthorization), "Bearer ")
+	// ambil token dari cookie, fallback ke header "Authorization: Bearer ..."
+	tokenStr := cookie.AccessTokenFromRequest(ctx)
 	if tokenStr == "" {
-		return response.SendFailureResponse(ctx, fiber.StatusBadRequest, "Empty header.")
+		cookie.ClearAuth(ctx)
+		return response.SendFailureResponse(ctx, fiber.StatusBadRequest, "Empty token.")
 	}
 
 	cctx, cancel := context.WithTimeout(ctx.Context(), 5*time.Second)
@@ -131,30 +136,66 @@ func Logout(ctx fiber.Ctx) error {
 		return response.SendFailureResponse(ctx, fiber.StatusInternalServerError, "Failed to logout")
 	}
 
+	// hapus cookie agar browser berhenti mengirim token
+	cookie.ClearAuth(ctx)
+
 	return response.SendSuccessResponse(ctx, fiber.StatusOK, "Logout successful", nil)
 }
 
-func RefreshToken(ctx fiber.Ctx) error {
-	// ambil body request
-	var req dto.RefreshTokenRequest
-	if err := ctx.Bind().Body(&req); err != nil {
-		log.Printf("Failed to bind body request: %v\n", err)
-		return response.SendFailureResponse(ctx, fiber.StatusBadRequest, "Failed to bind body request")
+// Profile mengembalikan data user yang sedang login. Dipakai frontend untuk
+// memastikan sesi (cookie) masih valid saat halaman dibuka/di-refresh.
+func Profile(ctx fiber.Ctx) error {
+	userID, ok := ctx.Locals("userId").(uint)
+	if !ok {
+		return response.SendFailureResponse(ctx, fiber.StatusUnauthorized, "Unauthorized.")
 	}
 
-	if err := req.Validate(); err != nil {
-		log.Printf("Failed to validate request: %v\n", err)
-		return response.SendFailureResponse(ctx, fiber.StatusBadRequest, err.Error())
+	cctx, cancel := context.WithTimeout(ctx.Context(), 5*time.Second)
+	defer cancel()
+
+	user, err := repository.FindUserByID(cctx, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return response.SendFailureResponse(ctx, fiber.StatusUnauthorized, "User not found.")
+		}
+		log.Printf("Failed to find user: %v\n", err)
+		return response.SendFailureResponse(ctx, fiber.StatusInternalServerError, "Failed to get profile")
+	}
+
+	return response.SendSuccessResponse(ctx, fiber.StatusOK, "User profile", dto.NewRegisterResponse(user))
+}
+
+func RefreshToken(ctx fiber.Ctx) error {
+	// refresh token dibaca dari cookie; fallback ke body untuk client non-browser
+	refreshToken := cookie.RefreshToken(ctx)
+
+	if refreshToken == "" {
+		var req dto.RefreshTokenRequest
+		if err := ctx.Bind().Body(&req); err != nil {
+			log.Printf("Failed to bind body request: %v\n", err)
+		} else if err := req.Validate(); err != nil {
+			log.Printf("No refresh token in cookie/body: %v\n", err)
+		} else {
+			refreshToken = req.RefreshToken
+		}
+	}
+
+	// tidak ada token di cookie maupun body → client dianggap belum login
+	if refreshToken == "" {
+		cookie.ClearAuth(ctx)
+		return response.SendFailureResponse(ctx, fiber.StatusUnauthorized, "Missing refresh token")
 	}
 
 	cctx, cancel := context.WithTimeout(ctx.Context(), 5*time.Second)
 	defer cancel()
 
 	// cari session berdasarkan refresh token yang dikirim client
-	session, err := repository.FindSessionByRefreshToken(cctx, token.HashToken(req.RefreshToken))
+	session, err := repository.FindSessionByRefreshToken(cctx, token.HashToken(refreshToken))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Printf("Refresh token not found: %v\n", err)
+			// session sudah tidak ada (mis. sudah logout) → bersihkan cookie
+			cookie.ClearAuth(ctx)
 			return response.SendFailureResponse(ctx, fiber.StatusUnauthorized, "Invalid refresh token")
 		}
 		log.Printf("Failed to find session: %v\n", err)
@@ -166,6 +207,7 @@ func RefreshToken(ctx fiber.Ctx) error {
 		if err := repository.DeleteSessionByID(cctx, session.ID); err != nil {
 			log.Printf("Failed to delete expired session: %v\n", err)
 		}
+		cookie.ClearAuth(ctx)
 		return response.SendFailureResponse(ctx, fiber.StatusUnauthorized, "Refresh token expired")
 	}
 
@@ -173,6 +215,7 @@ func RefreshToken(ctx fiber.Ctx) error {
 	user, err := repository.FindUserByID(cctx, session.UserID)
 	if err != nil {
 		log.Printf("User not found: %v\n", err)
+		cookie.ClearAuth(ctx)
 		return response.SendFailureResponse(ctx, fiber.StatusUnauthorized, "Invalid refresh token")
 	}
 
@@ -198,6 +241,9 @@ func RefreshToken(ctx fiber.Ctx) error {
 		log.Printf("Failed to update user session: %v\n", err)
 		return response.SendFailureResponse(ctx, fiber.StatusInternalServerError, "Failed to refresh token")
 	}
+
+	// rotasi cookie dengan token terbaru
+	cookie.SetAuth(ctx, tokenStr, newRefreshToken, jwt.AccessTokenDuration, jwt.RefreshTokenDuration)
 
 	refreshResponse := dto.RefreshTokenResponse{
 		Token:        tokenStr,
