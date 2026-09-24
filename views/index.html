@@ -335,8 +335,30 @@
       $('register-fullname').focus();
     }
 
-    // Check if JWT is stored in sessionStorage
-    document.addEventListener('DOMContentLoaded', function() {
+    // Data user yang sedang login (diisi dari response API, bukan dari storage)
+    let currentUser = null;
+
+    // Ambil profil user yang sedang login. Token dikirim otomatis oleh browser
+    // lewat cookie HttpOnly, jadi JavaScript tidak perlu (dan tidak bisa) membacanya.
+    async function loadProfile(retried = false) {
+      const response = await fetch('/user/v1/me', { credentials: 'same-origin' });
+
+      // access token kedaluwarsa → refresh SEKALI, lalu coba lagi
+      if (response.status === 401 && !retried && await refreshToken()) {
+        return loadProfile(true);
+      }
+
+      if (!response.ok) return false;
+
+      const data = await response.json();
+      if (!data.success || !data.data) return false;
+
+      currentUser = data.data;
+      return true;
+    }
+
+    // Cek sesi (cookie) saat halaman dibuka / di-refresh
+    document.addEventListener('DOMContentLoaded', async function() {
       if ('Notification' in window) {
         if (Notification.permission === 'granted') {
           console.log("Notification permission already granted.");
@@ -351,9 +373,14 @@
         console.log('This browser does not support notifications.');
       }
 
-      if (sessionStorage.getItem('jwtToken')) {
-        showDashboard();
-      } else {
+      try {
+        if (await loadProfile()) {
+          showDashboard();
+        } else {
+          showLogin();
+        }
+      } catch (err) {
+        console.error(err);
         showLogin();
       }
     });
@@ -434,11 +461,10 @@
         });
         const data = await response.json();
 
-        if (response.ok && data.success && data.data?.token) {
-          sessionStorage.setItem('jwtToken', data.data.token);
-          sessionStorage.setItem('refreshToken', data.data.refreshToken);
-          sessionStorage.setItem('username', data.data.username);
-          sessionStorage.setItem('fullname', data.data.fullName);
+        if (response.ok && data.success && data.data) {
+          // token sudah disimpan server pada cookie HttpOnly, body hanya berisi info user
+          currentUser = data.data;
+          $('login-password').value = '';
           showDashboard();
         } else {
           setAlert(data.message ?? 'Login failed!');
@@ -456,27 +482,26 @@
     try {
       let res = await fetch('/user/v1/logout', {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer ' + sessionStorage.getItem('jwtToken') }
+        credentials: 'same-origin'   // cookie token ikut terkirim otomatis
       });
 
       // access token kedaluwarsa → refresh SEKALI, lalu ulangi logout
       if (res.status === 401) {
         const ok = await refreshToken();
         if (!ok) {                     // refresh token juga mati → sesi sudah tidak valid
-          clearSession();
           window.alert('Sesi sudah berakhir, silakan login lagi.');
           location.reload();
           return;
         }
         res = await fetch('/user/v1/logout', {
           method: 'DELETE',
-          headers: { 'Authorization': 'Bearer ' + sessionStorage.getItem('jwtToken') }
+          credentials: 'same-origin'
         });
       }
 
       const data = await res.json();
       if (res.ok && data.success) {
-        clearSession();
+        currentUser = null;            // cookie sudah dihapus oleh server
         window.alert('Logout successful!');
         location.reload();
       } else {
@@ -490,23 +515,19 @@
 
   // refresh token function
   async function refreshToken() {
+    // refresh token dibaca server dari cookie HttpOnly, jadi tidak perlu dikirim di body
     const res = await fetch('/user/v1/refresh-token', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken: sessionStorage.getItem('refreshToken') })
+      body: JSON.stringify({})
     });
     if (!res.ok) return false;                       // 401 = refresh token mati
     const data = await res.json();
-    if (!data.success || !data.data.token) return false;
+    if (!data.success) return false;
 
-    sessionStorage.setItem('jwtToken', data.data.token);
-    sessionStorage.setItem('refreshToken', data.data.refreshToken);  // WAJIB: rotasi
+    // cookie access token & refresh token sudah dirotasi oleh server
     return true;
-  }
-
-  function clearSession() {
-    ['jwtToken', 'refreshToken', 'username', 'fullname']
-      .forEach(k => sessionStorage.removeItem(k));
   }
 
     // Function to show the dashboard
@@ -515,8 +536,8 @@
       $('dashboard').style.display = 'flex';
       setAlert('');
 
-      const fullName = sessionStorage.getItem('fullname') || '';
-      const username = sessionStorage.getItem('username') || '';
+      const fullName = currentUser?.fullName || '';
+      const username = currentUser?.username || '';
       $('dashboard-user').textContent = fullName
         ? `Signed in as ${fullName} (@${username})`
         : 'Signed in';
