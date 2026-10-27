@@ -158,20 +158,24 @@
       border: 1px solid #a7f3d0;
     }
 
-    /* ---------- Dashboard ---------- */
+    /* ---------- Dashboard / Chat room ---------- */
     #dashboard {
       display: none;
-      min-height: 100vh;
       flex-direction: column;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
       background-color: #f8fafc;
     }
 
     #dashboard header {
       display: flex;
+      flex: 0 0 auto;
+      flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
-      padding: 18px 24px;
+      gap: 12px;
+      padding: 14px 24px;
       background-color: #fff;
       border-bottom: 1px solid #e5e7eb;
       box-shadow: 0 1px 4px rgba(15, 23, 42, .06);
@@ -179,13 +183,20 @@
 
     #dashboard header h1 {
       margin: 0;
-      font-size: 18px;
+      font-size: 17px;
     }
 
     #dashboard header p {
-      margin: 4px 0 0;
+      margin: 3px 0 0;
       font-size: 13px;
       color: var(--muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-left: auto;
     }
 
     #logout-btn {
@@ -199,26 +210,331 @@
       background-color: #dc2626;
     }
 
+    /* Connection status pill */
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 11px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      color: #047857;
+      background-color: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      border-radius: 999px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #10b981;
+      border-radius: 50%;
+    }
+
+    .status.connecting {
+      color: #b45309;
+      background-color: #fffbeb;
+      border-color: #fde68a;
+    }
+
+    .status.connecting .status-dot {
+      background-color: #f59e0b;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    .status.offline {
+      color: #b91c1c;
+      background-color: #fef2f2;
+      border-color: #fecaca;
+    }
+
+    .status.offline .status-dot {
+      background-color: #ef4444;
+    }
+
+    @keyframes pulse {
+      50% { opacity: .35; }
+    }
+
     #dashboard main {
-      width: 100%;
-      max-width: 720px;
+      display: flex;
       flex: 1;
+      min-height: 0;
+      width: 100%;
+      max-width: 860px;
       margin: 0 auto;
-      padding: 24px;
+      padding: 20px 24px 24px;
     }
 
-    ul {
-      list-style-type: none;
-      padding: 0;
-      margin: 0;
-    }
-
-    li {
-      padding: 8px 10px;
-      margin: 5px 0;
+    .chat-card {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      flex-direction: column;
+      overflow: hidden;
       background-color: #fff;
-      border-radius: 4px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, .12);
+    }
+
+    .chat-head {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      border-bottom: 1px solid #eef0f4;
+    }
+
+    .chat-head h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .chat-head p {
+      margin: 2px 0 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .chat-room-avatar {
+      display: grid;
+      flex: 0 0 40px;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 12px;
+    }
+
+    .chat-messages {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      flex-direction: column;
+      gap: 14px;
+      padding: 18px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      background-color: #f8fafc;
+    }
+
+    /* Dorong pesan ke bawah saat masih sedikit, tanpa merusak scroll saat penuh */
+    .chat-messages::before {
+      content: "";
+      margin-top: auto;
+    }
+
+    .chat-messages::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb {
+      background-color: #cbd5e1;
+      border-radius: 999px;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin: auto;
+      padding: 20px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .empty-state strong {
+      font-size: 15px;
+      color: #374151;
+    }
+
+    .msg {
+      display: flex;
+      align-self: flex-start;
+      gap: 10px;
+      align-items: flex-end;
+      max-width: 78%;
+      animation: bubble-in .18s ease;
+    }
+
+    .msg.own {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+
+    @keyframes bubble-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg-avatar {
+      display: grid;
+      flex: 0 0 30px;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #4338ca;
+      text-transform: uppercase;
+      background-color: #e0e7ff;
+      border-radius: 50%;
+    }
+
+    .msg-body {
+      min-width: 0;
+    }
+
+    .msg-meta {
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+      margin-bottom: 4px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .msg.own .msg-meta {
+      justify-content: flex-end;
+    }
+
+    .msg-author {
+      font-weight: 600;
+      color: #4b5563;
+    }
+
+    .msg.own .msg-author {
+      color: #4338ca;
+    }
+
+    .msg-text {
+      padding: 10px 14px;
+      font-size: 14.5px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background-color: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px 14px 14px 4px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+    }
+
+    .msg.own .msg-text {
+      color: #fff;
+      background-color: var(--brand);
+      border-color: var(--brand);
+      border-radius: 14px 14px 4px 14px;
+    }
+
+    .chat-composer {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: flex-end;
+      gap: 10px;
+      padding: 12px 14px;
+      background-color: #fff;
+      border-top: 1px solid #eef0f4;
+    }
+
+    .chat-composer textarea {
+      flex: 1;
+      min-height: 46px;
+      max-height: 120px;
+      padding: 12px 14px;
+      font: inherit;
+      font-size: 15px;
+      line-height: 1.4;
+      color: var(--text);
+      resize: none;
+      overflow-y: auto;
+      scrollbar-width: none;
+      background-color: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      transition: border-color .15s, box-shadow .15s;
+    }
+
+    .chat-composer textarea::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+    }
+
+    .chat-composer textarea:focus {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, .18);
+    }
+
+    .chat-composer .send-btn {
+      width: auto;
+      flex: 0 0 auto;
+      padding: 13px 22px;
+      font-size: 14px;
+      border-radius: 12px;
+    }
+
+    @media (max-width: 640px) {
+      #dashboard header {
+        flex-wrap: nowrap;
+        padding: 12px 14px;
+      }
+
+      #dashboard header > div:first-child {
+        min-width: 0;
+      }
+
+      #dashboard header h1,
+      #dashboard header p {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+
+      #dashboard header h1 {
+        font-size: 15px;
+      }
+
+      .header-actions {
+        flex: 0 0 auto;
+        gap: 8px;
+      }
+
+      #logout-btn {
+        padding: 8px 12px;
+        font-size: 13px;
+      }
+
+      .status {
+        padding: 5px 9px;
+        font-size: 11px;
+      }
+
+      #dashboard main {
+        padding: 12px;
+      }
+
+      .chat-head {
+        padding: 12px 14px;
+      }
+
+      .chat-messages {
+        padding: 14px 12px;
+      }
+
+      .msg {
+        max-width: 92%;
+      }
+
+      .chat-composer .send-btn {
+        padding: 13px 16px;
+      }
     }
 
     @media (max-width: 480px) {
@@ -294,11 +610,38 @@
         <h1>Simple Messaging App</h1>
         <p id="dashboard-user"></p>
       </div>
-      <button id="logout-btn" onclick="logout()">Logout</button>
+      <div class="header-actions">
+        <span class="status connecting" id="connection-status">
+          <span class="status-dot"></span>
+          <span id="connection-label">Menghubungkan…</span>
+        </span>
+        <button id="logout-btn" onclick="logout()">Logout</button>
+      </div>
     </header>
 
     <main>
-      <ul id="messages"></ul>
+      <section class="chat-card" aria-label="Chat room">
+        <div class="chat-head">
+          <div class="chat-room-avatar" aria-hidden="true">#</div>
+          <div>
+            <h2>Lobby</h2>
+            <p>Global room · semua pengguna yang terhubung</p>
+          </div>
+        </div>
+
+        <div class="chat-messages" id="chat-messages" role="log" aria-live="polite">
+          <div class="empty-state" id="chat-empty">
+            <strong>Belum ada pesan</strong>
+            <span>Mulai percakapan dengan mengirim pesan pertama.</span>
+          </div>
+        </div>
+
+        <form class="chat-composer" id="chat-form" onsubmit="sendMessage(event)">
+          <textarea id="chat-input" rows="1" maxlength="2000" placeholder="Tulis pesan…"
+            autocomplete="off" aria-label="Tulis pesan"></textarea>
+          <button type="submit" id="send-btn" class="send-btn">Kirim</button>
+        </form>
+      </section>
     </main>
   </div>
 
@@ -321,6 +664,8 @@
       $('login-form').style.display = 'block';
       $('register-form').style.display = 'none';
       $('dashboard').style.display = 'none';
+      disconnectChat();
+      resetChat();
       setAlert('');
       $('login-username').focus();
     }
@@ -502,6 +847,7 @@
       const data = await res.json();
       if (res.ok && data.success) {
         currentUser = null;            // cookie sudah dihapus oleh server
+        disconnectChat();
         window.alert('Logout successful!');
         location.reload();
       } else {
@@ -530,6 +876,257 @@
     return true;
   }
 
+    // ================= Chat room (WebSocket) =================
+    // Catatan: route WebSocket didaftarkan pada app yang sama dengan halaman
+    // (lihat app/ws/messaging.go), jadi koneksi cukup memakai origin yang sama.
+    // Backend belum punya auth, timestamp, maupun riwayat pesan: pesan bersifat
+    // sementara (hilang saat refresh) dan field `from` diisi dari client.
+    // Untuk server WS terpisah, override lewat atribut data-ws-url pada #dashboard.
+    const WS_PATH = '/message/v1/send';
+    const WS_MAX_RETRY_DELAY = 10000;
+    const NEAR_BOTTOM_PX = 120;
+
+    let socket = null;
+    let reconnectTimer = null;
+    let retryDelay = 1000;
+    let manualClose = false;
+
+    function chatSocketUrl() {
+      const override = $('dashboard').dataset.wsUrl;
+      if (override) return override;
+
+      const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+      return `${scheme}://${location.host}${WS_PATH}`;
+    }
+
+    function setConnectionState(state, label) {
+      const pill = $('connection-status');
+      pill.classList.remove('connecting', 'offline');
+      if (state) pill.classList.add(state);
+      $('connection-label').textContent = label;
+    }
+
+    function updateComposerState() {
+      const ready = !!socket && socket.readyState === WebSocket.OPEN;
+      $('send-btn').disabled = !ready;
+      $('chat-input').placeholder = ready
+        ? 'Tulis pesan… (Enter untuk kirim)'
+        : 'Koneksi terputus — mencoba menghubungkan ulang…';
+    }
+
+    function connectChat() {
+      manualClose = false;
+
+      // Jangan buka koneksi baru kalau sudah ada yang aktif / sedang dibuka
+      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+
+      setConnectionState('connecting', 'Menghubungkan…');
+      updateComposerState();
+
+      let ws;
+      try {
+        ws = new WebSocket(chatSocketUrl());
+      } catch (err) {
+        console.error(err);
+        scheduleReconnect();
+        return;
+      }
+      socket = ws;
+
+      ws.addEventListener('open', () => {
+        if (socket !== ws) return;
+        retryDelay = 1000;
+        setConnectionState('', 'Terhubung');
+        updateComposerState();
+      });
+
+      ws.addEventListener('message', (event) => {
+        let payload;
+        try {
+          payload = JSON.parse(event.data);
+        } catch (err) {
+          return; // abaikan pesan yang bukan JSON
+        }
+        if (!payload || typeof payload.message !== 'string') return;
+
+        const from = String(payload.from || 'anonymous');
+        appendMessage(from, payload.message);
+        notifyIfHidden(from, payload.message);
+      });
+
+      ws.addEventListener('close', () => {
+        if (socket === ws) socket = null;
+        updateComposerState();
+        if (manualClose) return;
+        setConnectionState('offline', 'Terputus');
+        scheduleReconnect();
+      });
+
+      ws.addEventListener('error', () => {
+        ws.close();
+      });
+    }
+
+    function scheduleReconnect() {
+      if (manualClose) return;
+      clearTimeout(reconnectTimer);
+      const delay = retryDelay;
+      retryDelay = Math.min(retryDelay * 2, WS_MAX_RETRY_DELAY);
+      setConnectionState('connecting', 'Mencoba menghubungkan ulang…');
+      reconnectTimer = setTimeout(connectChat, delay);
+    }
+
+    function disconnectChat() {
+      manualClose = true;
+      clearTimeout(reconnectTimer);
+      if (socket) {
+        // close() memicu listener 'close'; manualClose mencegah auto-reconnect
+        socket.close();
+        socket = null;
+      }
+      setConnectionState('offline', 'Terputus');
+      updateComposerState();
+    }
+
+    function sendMessage(event) {
+      event.preventDefault();
+
+      const input = $('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        setConnectionState('offline', 'Terputus');
+        scheduleReconnect();
+        return; // teks tetap di input supaya bisa dikirim setelah tersambung
+      }
+
+      const username = currentUser?.username || 'anonymous';
+      socket.send(JSON.stringify({ from: username, message: text }));
+
+      // Pesan sengaja TIDAK ditambahkan secara lokal: server mem-broadcast
+      // balik ke semua client (termasuk pengirim), jadi append lokal = duplikat.
+      input.value = '';
+      autoGrowInput(input);
+      input.focus();
+    }
+
+    function autoGrowInput(input) {
+      input.style.height = 'auto';
+      input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
+    }
+
+    function isOwnMessage(from) {
+      const me = (currentUser?.username || '').toLowerCase();
+      return !!me && from.toLowerCase() === me;
+    }
+
+    function appendMessage(from, text) {
+      const list = $('chat-messages');
+
+      const empty = $('chat-empty');
+      if (empty) empty.remove();
+
+      const own = isOwnMessage(from);
+
+      const wrapper = document.createElement('div');
+      wrapper.className = own ? 'msg own' : 'msg';
+
+      if (!own) {
+        const avatar = document.createElement('div');
+        avatar.className = 'msg-avatar';
+        avatar.textContent = (from.trim().charAt(0) || '?').toUpperCase();
+        avatar.setAttribute('aria-hidden', 'true');
+        wrapper.appendChild(avatar);
+      }
+
+      const body = document.createElement('div');
+      body.className = 'msg-body';
+
+      const meta = document.createElement('div');
+      meta.className = 'msg-meta';
+
+      const author = document.createElement('span');
+      author.className = 'msg-author';
+      author.textContent = own ? 'Kamu' : from;
+
+      const time = document.createElement('span');
+      time.className = 'msg-time';
+      time.textContent = formatTime(new Date());
+
+      meta.append(author, time);
+
+      // textContent (bukan innerHTML) supaya isi pesan tidak dieksekusi sebagai HTML
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-text';
+      bubble.textContent = text;
+
+      body.append(meta, bubble);
+      wrapper.appendChild(body);
+
+      // Auto-scroll hanya kalau user sedang berada di dekat bawah, atau
+      // kalau pesan itu milik sendiri, supaya tidak mengganggu scroll history.
+      const stick = isNearBottom(list);
+      list.appendChild(wrapper);
+      if (stick || own) {
+        list.scrollTop = list.scrollHeight;
+      }
+    }
+
+    function isNearBottom(list) {
+      return list.scrollHeight - list.scrollTop - list.clientHeight < NEAR_BOTTOM_PX;
+    }
+
+    function formatTime(date) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+
+    function notifyIfHidden(from, text) {
+      if (!document.hidden || isOwnMessage(from)) return;
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      try {
+        new Notification(from, { body: text.slice(0, 140) });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function resetChat() {
+      const list = $('chat-messages');
+      list.replaceChildren();
+
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.id = 'chat-empty';
+
+      const title = document.createElement('strong');
+      title.textContent = 'Belum ada pesan';
+
+      const hint = document.createElement('span');
+      hint.textContent = 'Mulai percakapan dengan mengirim pesan pertama.';
+
+      empty.append(title, hint);
+      list.appendChild(empty);
+    }
+
+    // Enter = kirim, Shift+Enter = baris baru
+    $('chat-input').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        $('chat-form').requestSubmit();
+      }
+    });
+
+    $('chat-input').addEventListener('input', () => autoGrowInput($('chat-input')));
+
+    // Tutup koneksi dengan rapi saat halaman ditinggalkan
+    window.addEventListener('beforeunload', () => {
+      manualClose = true;
+      if (socket) socket.close();
+    });
+
     // Function to show the dashboard
     function showDashboard() {
       $('auth').style.display = 'none';
@@ -541,6 +1138,9 @@
       $('dashboard-user').textContent = fullName
         ? `Signed in as ${fullName} (@${username})`
         : 'Signed in';
+
+      connectChat();
+      updateComposerState();
     }
   </script>
 </body>
