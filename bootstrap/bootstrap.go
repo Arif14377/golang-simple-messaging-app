@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"github.com/Arif14377/golang-simple-messaging-app/app/ws"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/database"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/env"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/router"
@@ -19,6 +20,9 @@ func NewApplication() *fiber.App {
 	app.Use(recover.New())
 	app.Use(logger.New())
 	app.Get("/dashboard", monitor.New())
+
+	go ws.ServeWSMessaging(app)
+
 	router.InstallRouter(app)
 
 	return app
