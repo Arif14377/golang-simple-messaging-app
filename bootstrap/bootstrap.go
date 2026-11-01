@@ -15,13 +15,16 @@ import (
 func NewApplication() *fiber.App {
 	env.SetupEnvFile()
 	database.SetupDatabase()
+	database.SetupMongo()
 	engine := html.New("./views", ".html")
 	app := fiber.New(fiber.Config{Views: engine})
 	app.Use(recover.New())
 	app.Use(logger.New())
 	app.Get("/dashboard", monitor.New())
 
-	go ws.ServeWSMessaging(app)
+	// Chat WebSocket berbagi app & origin dengan halaman utama, sehingga cookie
+	// sesi (HttpOnly) otomatis ikut saat handshake.
+	ws.RegisterWSRoutes(app)
 
 	router.InstallRouter(app)
 
