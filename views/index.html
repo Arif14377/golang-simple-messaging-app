@@ -355,6 +355,19 @@
       color: #374151;
     }
 
+    .msg-system {
+      align-self: center;
+      max-width: 90%;
+      margin: 2px auto;
+      padding: 6px 12px;
+      font-size: 12px;
+      text-align: center;
+      color: #b91c1c;
+      background-color: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 999px;
+    }
+
     .msg {
       display: flex;
       align-self: flex-start;
@@ -877,19 +890,21 @@
   }
 
     // ================= Chat room (WebSocket) =================
-    // Catatan: route WebSocket didaftarkan pada app yang sama dengan halaman
-    // (lihat app/ws/messaging.go), jadi koneksi cukup memakai origin yang sama.
-    // Backend belum punya auth, timestamp, maupun riwayat pesan: pesan bersifat
-    // sementara (hilang saat refresh) dan field `from` diisi dari client.
+    // Route WebSocket & endpoint riwayat memakai origin yang sama dengan
+    // halaman, sehingga cookie sesi HttpOnly otomatis terkirim. Identitas
+    // pengirim, timestamp, dan penyimpanan pesan dikelola server.
     // Untuk server WS terpisah, override lewat atribut data-ws-url pada #dashboard.
     const WS_PATH = '/message/v1/send';
     const WS_MAX_RETRY_DELAY = 10000;
     const NEAR_BOTTOM_PX = 120;
+    const ROOM_ID = 'lobby';
+    const HISTORY_LIMIT = 50;
 
     let socket = null;
     let reconnectTimer = null;
     let retryDelay = 1000;
     let manualClose = false;
+    const renderedMessageIDs = new Set();
 
     function chatSocketUrl() {
       const override = $('dashboard').dataset.wsUrl;
@@ -951,8 +966,14 @@
         }
         if (!payload || typeof payload.message !== 'string') return;
 
+        // Pesan ditolak server (validasi / gagal simpan) — hanya untuk pengirim.
+        if (payload.type === 'error') {
+          appendSystemMessage(payload.message);
+          return;
+        }
+
         const from = String(payload.from || 'anonymous');
-        appendMessage(from, payload.message);
+        appendMessage(from, payload.message, payload.createdAt, payload.id);
         notifyIfHidden(from, payload.message);
       });
 
@@ -975,7 +996,19 @@
       const delay = retryDelay;
       retryDelay = Math.min(retryDelay * 2, WS_MAX_RETRY_DELAY);
       setConnectionState('connecting', 'Mencoba menghubungkan ulang…');
-      reconnectTimer = setTimeout(connectChat, delay);
+      reconnectTimer = setTimeout(async () => {
+        if (manualClose) return;
+
+        // Access token hanya berlaku 15 menit; jika koneksi terputus setelahnya,
+        // handshake akan ditolak (401). Rotasi token dulu sebelum mencoba lagi.
+        try {
+          await refreshToken();
+        } catch (err) {
+          console.error(err);
+        }
+        if (manualClose) return;
+        connectChat();
+      }, delay);
     }
 
     function disconnectChat() {
@@ -1003,8 +1036,7 @@
         return; // teks tetap di input supaya bisa dikirim setelah tersambung
       }
 
-      const username = currentUser?.username || 'anonymous';
-      socket.send(JSON.stringify({ from: username, message: text }));
+      socket.send(JSON.stringify({ roomId: ROOM_ID, message: text }));
 
       // Pesan sengaja TIDAK ditambahkan secara lokal: server mem-broadcast
       // balik ke semua client (termasuk pengirim), jadi append lokal = duplikat.
@@ -1023,7 +1055,13 @@
       return !!me && from.toLowerCase() === me;
     }
 
-    function appendMessage(from, text) {
+    function appendMessage(from, text, createdAt, id) {
+      // Cegah duplikat antara riwayat REST dan broadcast WebSocket.
+      if (id) {
+        if (renderedMessageIDs.has(id)) return;
+        renderedMessageIDs.add(id);
+      }
+
       const list = $('chat-messages');
 
       const empty = $('chat-empty');
@@ -1033,6 +1071,7 @@
 
       const wrapper = document.createElement('div');
       wrapper.className = own ? 'msg own' : 'msg';
+      if (id) wrapper.dataset.messageId = id;
 
       if (!own) {
         const avatar = document.createElement('div');
@@ -1054,7 +1093,7 @@
 
       const time = document.createElement('span');
       time.className = 'msg-time';
-      time.textContent = formatTime(new Date());
+      time.textContent = formatTime(createdAt ? new Date(createdAt) : new Date());
 
       meta.append(author, time);
 
@@ -1080,7 +1119,59 @@
     }
 
     function formatTime(date) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+        return formatTime(new Date());
+      }
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+
+    function appendSystemMessage(text) {
+      const list = $('chat-messages');
+      if (!text) return;
+
+      const empty = $('chat-empty');
+      if (empty) empty.remove();
+
+      const el = document.createElement('div');
+      el.className = 'msg-system';
+      el.textContent = text;
+      list.appendChild(el);
+      list.scrollTop = list.scrollHeight;
+    }
+
+    // Muat riwayat pesan dari MongoDB sebelum WebSocket dibuka, supaya urutan
+    // pesan lama → baru tetap konsisten.
+    async function loadHistory(retried = false) {
+      let response;
+      try {
+        response = await fetch(
+          `/message/v1/history?room=${encodeURIComponent(ROOM_ID)}&limit=${HISTORY_LIMIT}`,
+          { credentials: 'same-origin' }
+        );
+      } catch (err) {
+        console.error(err);
+        return;
+      }
+
+      // access token kedaluwarsa → refresh SEKALI, lalu coba lagi
+      if (response.status === 401 && !retried && await refreshToken()) {
+        return loadHistory(true);
+      }
+      if (!response.ok) return;
+
+      const data = await response.json();
+      if (!data.success || !Array.isArray(data.data)) return;
+
+      const list = $('chat-messages');
+      for (const item of data.data) {
+        appendMessage(
+          String(item.from || 'anonymous'),
+          String(item.message || ''),
+          item.createdAt,
+          item.id
+        );
+      }
+      list.scrollTop = list.scrollHeight;
     }
 
     function notifyIfHidden(from, text) {
@@ -1094,6 +1185,8 @@
     }
 
     function resetChat() {
+      renderedMessageIDs.clear();
+
       const list = $('chat-messages');
       list.replaceChildren();
 
@@ -1128,7 +1221,7 @@
     });
 
     // Function to show the dashboard
-    function showDashboard() {
+    async function showDashboard() {
       $('auth').style.display = 'none';
       $('dashboard').style.display = 'flex';
       setAlert('');
@@ -1138,6 +1231,10 @@
       $('dashboard-user').textContent = fullName
         ? `Signed in as ${fullName} (@${username})`
         : 'Signed in';
+
+      // Riwayat dulu, baru buka WebSocket, agar pesan baru tidak mendahului
+      // pesan lama saat halaman dibuka.
+      await loadHistory();
 
       connectChat();
       updateComposerState();
