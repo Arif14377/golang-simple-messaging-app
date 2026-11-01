@@ -15,10 +15,62 @@ Fiber bootstrap for rapid development using Go-Fiber / Gorm / Validator.
   * Html Engine Template
   * Logger
   * Monitoring
-* Gorm
-  * PGSQL Driver
+  * WebSocket (chat)
+* Gorm (MySQL)
+  * User & session
+* MongoDB (`mongo-driver` v2)
+  * Riwayat pesan chat
 * Validator
 * Env File
+
+## Chat & MongoDB
+
+Pesan chat disimpan di MongoDB sebelum di-broadcast ke semua client. Identitas
+pengirim (`user_id`, `username`) dan `created_at` diambil dari sesi/JWT di server,
+bukan dari payload client.
+
+Collection dan index dibuat otomatis saat aplikasi start:
+
+* database: `MONGODB_DB` (default `simple_messaging_app`)
+* collection: `MONGODB_COLLECTION` (default `messages`)
+* index: `room_id_1_created_at_-1`
+
+Contoh menjalankan MongoDB dengan auth untuk development:
+
+```bash
+docker run -d --name mongo-dev -p 27017:27017 \
+  -e MONGO_INITDB_ROOT_USERNAME=root \
+  -e MONGO_INITDB_ROOT_PASSWORD=1 \
+  -v mongo_data:/data/db \
+  mongo:9
+```
+
+Lalu isi `.env`:
+
+```dotenv
+MONGODB_URI="mongodb://root:1@localhost:27017/?authSource=admin&directConnection=true"
+MONGODB_DB="simple_messaging_app"
+MONGODB_COLLECTION="messages"
+```
+
+Cek data yang tersimpan:
+
+```bash
+docker exec mongo-dev mongosh \
+  "mongodb://root:1@localhost:27017/simple_messaging_app?authSource=admin" \
+  --quiet --eval 'db.messages.find().sort({created_at:-1}).limit(5)'
+```
+
+Endpoint riwayat (butuh cookie sesi / Bearer token):
+
+```
+GET /message/v1/history?room=lobby&limit=50&before=<RFC3339>
+```
+
+WebSocket chat: `GET /message/v1/send` (juga butuh sesi valid). Pesan dikirim
+sebagai `{"roomId":"lobby","message":"..."}`; server membalas
+`{"id","roomId","from","userId","message","createdAt"}` atau
+`{"type":"error","message":"..."}` bila pesan ditolak.
 
 ## Router
 API Router `/api` with rate limiter middleware
@@ -31,7 +83,7 @@ Http Router `/` with CORS and CSRF middleware
     cp .env.example .env
     ```
 
-2. Modify the env file you just copied `.env` with the correct credentials for your database. Make sure the database you entered in `DB_NAME` has been created.
+2. Modify the env file you just copied `.env` with the correct credentials for MySQL **and MongoDB**. Make sure the MySQL database entered in `DB_NAME` has been created; the MongoDB database/collection is created automatically on startup.
 
 3. Run the API:
     ```
