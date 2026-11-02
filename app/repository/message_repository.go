@@ -20,6 +20,9 @@ const (
 
 // InsertMessage menyimpan satu pesan ke MongoDB dan mengisi ID hasil insert.
 func InsertMessage(ctx context.Context, message *models.Message) error {
+	ctx, span := startMongoSpan(ctx, "InsertMessage", "insert")
+	defer span.End()
+
 	result, err := database.MessageCollection().InsertOne(ctx, message)
 	if err != nil {
 		return err
@@ -36,6 +39,9 @@ func InsertMessage(ctx context.Context, message *models.Message) error {
 // di query lalu dikembalikan dalam urutan lama → baru agar siap dirender UI.
 // before dipakai sebagai cursor: hanya pesan yang lebih lama dari waktu itu.
 func FindMessagesByRoom(ctx context.Context, roomID string, limit int64, before time.Time) ([]models.Message, error) {
+	ctx, span := startMongoSpan(ctx, "FindMessagesByRoom", "find")
+	defer span.End()
+
 	if limit <= 0 {
 		limit = DefaultHistoryLimit
 	}

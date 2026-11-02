@@ -11,11 +11,14 @@ import (
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/jwt"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/response"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/token"
+	"github.com/Arif14377/golang-simple-messaging-app/pkg/tracing"
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
 )
 
 func Auth(ctx fiber.Ctx) error {
+	defer tracing.Span(ctx, "Auth", "middleware")()
+
 	// ambil access token dari cookie (fallback: header "Authorization: Bearer ...")
 	tokenStr := cookie.AccessTokenFromRequest(ctx)
 	if tokenStr == "" {
@@ -23,13 +26,13 @@ func Auth(ctx fiber.Ctx) error {
 	}
 
 	// verify/validasi token.
-	claims, err := jwt.VerifyToken(tokenStr)
+	claims, err := jwt.VerifyToken(ctx.Context(), tokenStr)
 	if err != nil {
 		return response.SendFailureResponse(ctx, fiber.StatusUnauthorized, "Invalid or expired token.")
 	}
 
 	// cek session
-	tokenHash := token.HashToken(tokenStr)
+	tokenHash := token.HashToken(ctx.Context(), tokenStr)
 
 	cctx, cancel := context.WithTimeout(ctx.Context(), 5*time.Second)
 	defer cancel()

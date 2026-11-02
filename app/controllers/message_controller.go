@@ -11,6 +11,7 @@ import (
 	"github.com/Arif14377/golang-simple-messaging-app/app/ws"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/dto"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/response"
+	"github.com/Arif14377/golang-simple-messaging-app/pkg/tracing"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -20,6 +21,8 @@ import (
 //   - limit  (default 50, maksimal 100)
 //   - before (RFC3339, untuk pagination ke pesan yang lebih lama)
 func MessageHistory(ctx fiber.Ctx) error {
+	defer tracing.Span(ctx, "MessageHistory", "controller")()
+
 	roomID := strings.TrimSpace(ctx.Query("room", ws.DefaultRoomID))
 	if roomID == "" {
 		roomID = ws.DefaultRoomID

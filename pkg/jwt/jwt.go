@@ -1,12 +1,14 @@
 package jwt
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/Arif14377/golang-simple-messaging-app/app/models"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/env"
+	"github.com/Arif14377/golang-simple-messaging-app/pkg/tracing"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -21,7 +23,10 @@ type CustomClaims struct {
 	jwt.RegisteredClaims
 }
 
-func GenerateToken(user models.User) (token string, err error) {
+func GenerateToken(ctx context.Context, user models.User) (token string, err error) {
+	_, span := tracing.StartSpan(ctx, "GenerateToken", "jwt")
+	defer span.End()
+
 	secret := env.GetEnv("JWT_SECRET", "secret")
 
 	claims := CustomClaims{
@@ -38,7 +43,10 @@ func GenerateToken(user models.User) (token string, err error) {
 	return token, err
 }
 
-func VerifyToken(tokenString string) (*CustomClaims, error) {
+func VerifyToken(ctx context.Context, tokenString string) (*CustomClaims, error) {
+	_, span := tracing.StartSpan(ctx, "VerifyToken", "jwt")
+	defer span.End()
+
 	secret := env.GetEnv("JWT_SECRET", "secret")
 
 	claims := &CustomClaims{}

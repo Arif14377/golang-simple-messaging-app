@@ -1,8 +1,10 @@
 package models
 
 import (
+	"context"
 	"time"
 
+	"github.com/Arif14377/golang-simple-messaging-app/pkg/tracing"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -17,7 +19,10 @@ type User struct {
 	UpdatedAt time.Time `json:"-"`
 }
 
-func (l User) Validate() error {
+func (l User) Validate(ctx context.Context) error {
+	_, span := tracing.StartSpan(ctx, "User.Validate", "validate")
+	defer span.End()
+
 	return validate.Struct(l)
 }
 
@@ -31,6 +36,9 @@ type UserSession struct {
 	RefreshTokenExpired time.Time `json:"-" validate:"required"`
 }
 
-func (l UserSession) Validate() error {
+func (l UserSession) Validate(ctx context.Context) error {
+	_, span := tracing.StartSpan(ctx, "UserSession.Validate", "validate")
+	defer span.End()
+
 	return validate.Struct(l)
 }

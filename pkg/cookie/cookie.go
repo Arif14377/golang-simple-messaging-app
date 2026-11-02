@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/env"
+	"github.com/Arif14377/golang-simple-messaging-app/pkg/tracing"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -46,6 +47,8 @@ func newAuthCookie(key, value string, ttl time.Duration) *fiber.Cookie {
 // SetAuth menyimpan access token & refresh token ke cookie HttpOnly.
 // Browser akan otomatis mengirimkannya pada setiap request berikutnya.
 func SetAuth(ctx fiber.Ctx, accessToken, refreshToken string, accessTTL, refreshTTL time.Duration) {
+	defer tracing.Span(ctx, "SetAuth", "cookie")()
+
 	ctx.Cookie(newAuthCookie(AccessTokenKey, accessToken, accessTTL))
 	ctx.Cookie(newAuthCookie(RefreshTokenKey, refreshToken, refreshTTL))
 }
@@ -75,6 +78,8 @@ func expiredCookie(key string) *fiber.Cookie {
 // Path akan memakai default-path dari URL request (mis. /user/v1), sehingga
 // cookie lama tidak ikut terhapus.
 func ClearAuth(ctx fiber.Ctx) {
+	defer tracing.Span(ctx, "ClearAuth", "cookie")()
+
 	ctx.Cookie(expiredCookie(AccessTokenKey))
 	ctx.Cookie(expiredCookie(RefreshTokenKey))
 }
@@ -93,6 +98,8 @@ func RefreshToken(ctx fiber.Ctx) string {
 // fallback ke header "Authorization: Bearer <token>" untuk client non-browser
 // (mis. curl, Postman, aplikasi mobile).
 func AccessTokenFromRequest(ctx fiber.Ctx) string {
+	defer tracing.Span(ctx, "AccessTokenFromRequest", "cookie")()
+
 	if value := AccessToken(ctx); value != "" {
 		return value
 	}

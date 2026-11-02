@@ -1,7 +1,10 @@
 package dto
 
 import (
+	"context"
+
 	"github.com/Arif14377/golang-simple-messaging-app/app/models"
+	"github.com/Arif14377/golang-simple-messaging-app/pkg/tracing"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -26,7 +29,10 @@ type LoginRequest struct {
 	Password string `json:"password" validate:"required"`
 }
 
-func (l LoginRequest) Validate() error {
+func (l LoginRequest) Validate(ctx context.Context) error {
+	_, span := tracing.StartSpan(ctx, "LoginRequest.Validate", "validate")
+	defer span.End()
+
 	return validate.Struct(l)
 }
 
@@ -41,7 +47,10 @@ type RefreshTokenRequest struct {
 	RefreshToken string `json:"refreshToken" validate:"required"`
 }
 
-func (l RefreshTokenRequest) Validate() error {
+func (l RefreshTokenRequest) Validate(ctx context.Context) error {
+	_, span := tracing.StartSpan(ctx, "RefreshTokenRequest.Validate", "validate")
+	defer span.End()
+
 	return validate.Struct(l)
 }
 

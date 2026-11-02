@@ -13,30 +13,33 @@ import (
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/jwt"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/response"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/token"
+	"github.com/Arif14377/golang-simple-messaging-app/pkg/tracing"
 	"github.com/gofiber/fiber/v3"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
 func Register(ctx fiber.Ctx) error {
+	defer tracing.Span(ctx, "Register", "controller")()
+
 	user := new(models.User)
 	if err := ctx.Bind().Body(user); err != nil {
 		log.Printf("failed to parse request: %v\n", err)
 		return response.SendFailureResponse(ctx, fiber.StatusBadRequest, "failed to parse request")
 	}
 
-	if err := user.Validate(); err != nil {
+	if err := user.Validate(ctx.Context()); err != nil {
 		log.Printf("failed to validate request: %v\n", err)
 		return response.SendFailureResponse(ctx, fiber.StatusBadRequest, err.Error())
 	}
 
-	hashPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	hashedPassword, err := hashPassword(ctx, user.Password)
 	if err != nil {
 		log.Printf("failed to encrypt password: %v\n", err)
 		return response.SendFailureResponse(ctx, fiber.StatusInternalServerError, "failed to register user")
 	}
 
-	user.Password = string(hashPassword)
+	user.Password = hashedPassword
 
 	cctx, cancel := context.WithTimeout(ctx.Context(), 5*time.Second)
 	defer cancel()
@@ -52,6 +55,8 @@ func Register(ctx fiber.Ctx) error {
 }
 
 func Login(ctx fiber.Ctx) error {
+	defer tracing.Span(ctx, "Login", "controller")()
+
 	// ambil body request
 	var req dto.LoginRequest
 	if err := ctx.Bind().Body(&req); err != nil {
@@ -59,7 +64,7 @@ func Login(ctx fiber.Ctx) error {
 		return response.SendFailureResponse(ctx, fiber.ErrBadRequest.Code, "Failed to bind body request")
 	}
 
-	if err := req.Validate(); err != nil {
+	if err := req.Validate(ctx.Context()); err != nil {
 		log.Printf("Failed to validate request: %v\n", err)
 		return response.SendFailureResponse(ctx, fiber.StatusBadRequest, err.Error())
 	}
@@ -72,19 +77,19 @@ func Login(ctx fiber.Ctx) error {
 	}
 
 	// compare password
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+	if err := comparePassword(ctx, user.Password, req.Password); err != nil {
 		log.Printf("Failed to compare hash and password: %v\n", err)
 		return response.SendFailureResponse(ctx, fiber.StatusBadRequest, "Wrong password")
 	}
 
 	// buat token jwt
-	tokenStr, err := jwt.GenerateToken(user)
+	tokenStr, err := jwt.GenerateToken(ctx.Context(), user)
 	if err != nil {
 		log.Printf("Failed to generate access token: %v\n", err)
 		return response.SendFailureResponse(ctx, fiber.StatusInternalServerError, "Failed to login")
 	}
 
-	refreshToken, err := token.GenerateRefreshToken()
+	refreshToken, err := token.GenerateRefreshToken(ctx.Context())
 	if err != nil {
 		log.Printf("Failed to generate refresh token: %v\n", err)
 		return response.SendFailureResponse(ctx, fiber.StatusInternalServerError, "Failed to login")
@@ -96,8 +101,8 @@ func Login(ctx fiber.Ctx) error {
 
 	session := models.UserSession{
 		UserID:              user.ID,
-		TokenHash:           token.HashToken(tokenStr),
-		RefreshToken:        token.HashToken(refreshToken),
+		TokenHash:           token.HashToken(ctx.Context(), tokenStr),
+		RefreshToken:        token.HashToken(ctx.Context(), refreshToken),
 		RefreshTokenExpired: time.Now().Add(jwt.RefreshTokenDuration),
 	}
 
@@ -121,6 +126,8 @@ func Login(ctx fiber.Ctx) error {
 }
 
 func Logout(ctx fiber.Ctx) error {
+	defer tracing.Span(ctx, "Logout", "controller")()
+
 	// ambil token dari cookie, fallback ke header "Authorization: Bearer ..."
 	tokenStr := cookie.AccessTokenFromRequest(ctx)
 	if tokenStr == "" {
@@ -131,7 +138,7 @@ func Logout(ctx fiber.Ctx) error {
 	cctx, cancel := context.WithTimeout(ctx.Context(), 5*time.Second)
 	defer cancel()
 
-	if err := repository.DeleteSessionByToken(cctx, token.HashToken(tokenStr)); err != nil {
+	if err := repository.DeleteSessionByToken(cctx, token.HashToken(ctx.Context(), tokenStr)); err != nil {
 		log.Printf("Failed to delete session: %v\n", err)
 		return response.SendFailureResponse(ctx, fiber.StatusInternalServerError, "Failed to logout")
 	}
@@ -145,6 +152,8 @@ func Logout(ctx fiber.Ctx) error {
 // Profile mengembalikan data user yang sedang login. Dipakai frontend untuk
 // memastikan sesi (cookie) masih valid saat halaman dibuka/di-refresh.
 func Profile(ctx fiber.Ctx) error {
+	defer tracing.Span(ctx, "Profile", "controller")()
+
 	userID, ok := ctx.Locals("userId").(uint)
 	if !ok {
 		return response.SendFailureResponse(ctx, fiber.StatusUnauthorized, "Unauthorized.")
@@ -166,6 +175,8 @@ func Profile(ctx fiber.Ctx) error {
 }
 
 func RefreshToken(ctx fiber.Ctx) error {
+	defer tracing.Span(ctx, "RefreshToken", "controller")()
+
 	// refresh token dibaca dari cookie; fallback ke body untuk client non-browser
 	refreshToken := cookie.RefreshToken(ctx)
 
@@ -173,7 +184,7 @@ func RefreshToken(ctx fiber.Ctx) error {
 		var req dto.RefreshTokenRequest
 		if err := ctx.Bind().Body(&req); err != nil {
 			log.Printf("Failed to bind body request: %v\n", err)
-		} else if err := req.Validate(); err != nil {
+		} else if err := req.Validate(ctx.Context()); err != nil {
 			log.Printf("No refresh token in cookie/body: %v\n", err)
 		} else {
 			refreshToken = req.RefreshToken
@@ -190,7 +201,7 @@ func RefreshToken(ctx fiber.Ctx) error {
 	defer cancel()
 
 	// cari session berdasarkan refresh token yang dikirim client
-	session, err := repository.FindSessionByRefreshToken(cctx, token.HashToken(refreshToken))
+	session, err := repository.FindSessionByRefreshToken(cctx, token.HashToken(ctx.Context(), refreshToken))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Printf("Refresh token not found: %v\n", err)
@@ -220,21 +231,21 @@ func RefreshToken(ctx fiber.Ctx) error {
 	}
 
 	// buat access token dan refresh token baru
-	tokenStr, err := jwt.GenerateToken(user)
+	tokenStr, err := jwt.GenerateToken(ctx.Context(), user)
 	if err != nil {
 		log.Printf("Failed to generate access token: %v\n", err)
 		return response.SendFailureResponse(ctx, fiber.StatusInternalServerError, "Failed to refresh token")
 	}
 
-	newRefreshToken, err := token.GenerateRefreshToken()
+	newRefreshToken, err := token.GenerateRefreshToken(ctx.Context())
 	if err != nil {
 		log.Printf("Failed to generate refresh token: %v\n", err)
 		return response.SendFailureResponse(ctx, fiber.StatusInternalServerError, "Failed to refresh token")
 	}
 
 	// rotasi session dengan token terbaru
-	session.TokenHash = token.HashToken(tokenStr)
-	session.RefreshToken = token.HashToken(newRefreshToken)
+	session.TokenHash = token.HashToken(ctx.Context(), tokenStr)
+	session.RefreshToken = token.HashToken(ctx.Context(), newRefreshToken)
 	session.RefreshTokenExpired = time.Now().Add(jwt.RefreshTokenDuration)
 
 	if err := repository.UpdateUserSession(cctx, &session); err != nil {
@@ -251,4 +262,25 @@ func RefreshToken(ctx fiber.Ctx) error {
 	}
 
 	return response.SendSuccessResponse(ctx, fiber.StatusOK, "Token refreshed successfully", refreshResponse)
+}
+
+// hashPassword membungkus bcrypt sekaligus mencatat latensinya. Cost bcrypt
+// cukup mahal (~50-100 ms), jadi bagian ini layak terlihat terpisah dari
+// durasi handler.
+func hashPassword(ctx fiber.Ctx, password string) (string, error) {
+	defer tracing.Span(ctx, "HashPassword", "crypto")()
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+
+	return string(hash), nil
+}
+
+// comparePassword membungkus bcrypt.CompareHashAndPassword dengan span.
+func comparePassword(ctx fiber.Ctx, hashedPassword, password string) error {
+	defer tracing.Span(ctx, "ComparePassword", "crypto")()
+
+	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }

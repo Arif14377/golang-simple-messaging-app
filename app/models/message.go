@@ -1,8 +1,10 @@
 package models
 
 import (
+	"context"
 	"time"
 
+	"github.com/Arif14377/golang-simple-messaging-app/pkg/tracing"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -19,6 +21,9 @@ type Message struct {
 }
 
 // Validate memastikan dokumen pesan memiliki data wajib yang valid.
-func (m Message) Validate() error {
+func (m Message) Validate(ctx context.Context) error {
+	_, span := tracing.StartSpan(ctx, "Message.Validate", "validate")
+	defer span.End()
+
 	return validate.Struct(m)
 }
