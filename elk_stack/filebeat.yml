@@ -1,0 +1,44 @@
+# Filebeat: kirim log aplikasi Go (./logs/simple_messaging_app.log) ke Logstash.
+# File ini di-mount read-only ke container pada path:
+#   /usr/share/filebeat/filebeat.yml
+
+filebeat.inputs:
+  - type: filestream
+    id: simple-messaging-app
+    enabled: true
+
+    # Di dalam container, folder <project>/logs di-mount ke sini.
+    paths:
+      - /var/log/simple-messaging-app/*.log
+
+    # Satu baris log dianggap awal record baru kalau diawali:
+    #   - "2026/11/02 04:00:42 "  (stdlib log / log.Printf)
+    #   - "[15:04:05]"            (access log Fiber)
+    # Baris lain (mis. stack trace) digabung ke record sebelumnya.
+    parsers:
+      - multiline:
+          type: pattern
+          pattern: '^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}|\[\d{2}:\d{2}:\d{2}\])'
+          negate: true
+          match: after
+          max_lines: 500
+          timeout: 5s
+
+    fields:
+      service:
+        name: simple-messaging-app
+        environment: development
+      log:
+        source: file
+    fields_under_root: true
+
+    # Tutup file handle kalau tidak ada aktivitas, hemat resource.
+    close.on_state_change.inactive: 10m
+
+output.logstash:
+  hosts: ["logstash:5044"]
+  loadbalance: true
+  worker: 1
+
+logging.level: info
+logging.to_stderr: true

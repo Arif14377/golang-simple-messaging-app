@@ -1,0 +1,121 @@
+name: simple-messaging-elk
+
+# Semua service memakai versi yang sama. Bisa dioverride tanpa mengedit file:
+#   ELK_VERSION=8.15.3 docker compose up -d
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELK_VERSION:-8.15.3}
+    container_name: elk-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - cluster.name=simple-messaging-cluster
+      - node.name=elk-node-1
+      # Development only: tanpa TLS/autentikasi. Jangan dipakai di production.
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      - xpack.ml.enabled=false
+      - bootstrap.memory_lock=true
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    ports:
+      # Bind ke localhost saja agar cluster tanpa auth tidak terbuka ke jaringan.
+      - "127.0.0.1:9200:9200"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -fsS 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' >/dev/null || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    networks:
+      - elk
+    restart: unless-stopped
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${ELK_VERSION:-8.15.3}
+    container_name: elk-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - XPACK_SECURITY_ENABLED=false
+      # Wajib >= 32 karakter; nilai tetap untuk development.
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=simple-messaging-app-kibana-key-32b
+      - TELEMETRY_ENABLED=false
+      - SERVER_NAME=simple-messaging-kibana
+    ports:
+      - "127.0.0.1:5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - elk
+    restart: unless-stopped
+
+  apm-server:
+    image: docker.elastic.co/apm/apm-server:${ELK_VERSION:-8.15.3}
+    container_name: elk-apm-server
+    command: ["apm-server", "-e", "--strict.perms=false"]
+    volumes:
+      - ./apm-server.yml:/usr/share/apm-server/apm-server.yml:ro
+    ports:
+      # Aplikasi Go berjalan di host, jadi agent mengirim ke localhost:8200.
+      # Bind ke localhost saja karena belum ada API key/TLS.
+      - "127.0.0.1:8200:8200"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - elk
+    restart: unless-stopped
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${ELK_VERSION:-8.15.3}
+    container_name: elk-logstash
+    environment:
+      - LS_JAVA_OPTS=-Xms256m -Xmx256m
+      - xpack.monitoring.enabled=false
+      # Dipakai date filter di logstash.conf untuk log yang tidak punya offset.
+      - LOG_TIMEZONE=${LOG_TIMEZONE:-Asia/Jakarta}
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - elk
+    restart: unless-stopped
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:${ELK_VERSION:-8.15.3}
+    container_name: elk-filebeat
+    # root supaya pasti bisa membaca file log milik user host.
+    user: root
+    command: ["filebeat", "-e", "--strict.perms=false"]
+    volumes:
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      # Path relatif terhadap file compose ini: <project>/logs
+      - ../logs:/var/log/simple-messaging-app:ro
+      # Registry disimpan agar posisi baca tidak hilang saat container restart.
+      - filebeatdata:/usr/share/filebeat/data
+    depends_on:
+      logstash:
+        condition: service_started
+    networks:
+      - elk
+    restart: unless-stopped
+
+networks:
+  elk:
+    driver: bridge
+
+volumes:
+  esdata:
+  filebeatdata:

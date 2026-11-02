@@ -1,0 +1,18 @@
+# Konfigurasi APM Server (standalone) untuk development.
+# Di-mount read-only ke /usr/share/apm-server/apm-server.yml
+
+apm-server:
+  # Agent (aplikasi Go) mengirim data ke port ini.
+  host: "0.0.0.0:8200"
+
+  # RUM dimatikan karena frontend belum memakai APM agent JavaScript.
+  rum:
+    enabled: false
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  # Security Elasticsearch dimatikan di docker-compose, jadi tanpa username/password.
+
+# Template index & data stream APM dibuat otomatis saat startup.
+logging.level: info
+logging.to_stderr: true
