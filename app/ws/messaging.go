@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -13,8 +14,10 @@ import (
 	"github.com/Arif14377/golang-simple-messaging-app/app/models"
 	"github.com/Arif14377/golang-simple-messaging-app/app/repository"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/dto"
+	"github.com/Arif14377/golang-simple-messaging-app/pkg/tracing"
 	"github.com/gofiber/contrib/v3/websocket"
 	"github.com/gofiber/fiber/v3"
+	"go.elastic.co/apm/v2"
 )
 
 const (
@@ -84,16 +87,61 @@ func RegisterWSRoutes(app *fiber.App) {
 // run adalah satu-satunya goroutine yang menulis ke socket, sehingga tidak ada
 // penulisan bersamaan ke koneksi yang sama.
 func (h *hub) run() {
-	for packet := range h.broadcast {
-		if packet.target != nil {
-			h.write(packet.target, packet.payload)
-			continue
-		}
+	for pkt := range h.broadcast {
+		h.dispatch(pkt)
+	}
+}
 
-		for _, c := range h.snapshot() {
-			h.write(c, packet.payload)
+// dispatch mengirim satu packet dan mencatatnya sebagai transaksi APM sendiri.
+//
+// Ini perlu karena processMessage sudah menutup transaksi "ws.message" sebelum
+// packet sampai ke goroutine ini. Span yang dibuat tanpa transaksi aktif akan
+// dibuang oleh agent, jadi broadcast harus punya transaksi sendiri.
+func (h *hub) dispatch(pkt packet) {
+	ctx, tx := tracing.StartTransaction(context.Background(), "ws.broadcast", "websocket")
+	if tx == nil {
+		h.deliver(context.Background(), pkt)
+		return
+	}
+
+	result, outcome := "sent", "success"
+	defer func() {
+		tx.Result = result
+		tx.Outcome = outcome
+		tx.End()
+	}()
+
+	written, failed := h.deliver(ctx, pkt)
+	tx.Context.SetLabel("targets", strconv.Itoa(written+failed))
+	if failed > 0 {
+		tx.Context.SetLabel("failed_writes", strconv.Itoa(failed))
+		outcome = "failure"
+		result = "failed"
+		if written > 0 {
+			result = "partial"
 		}
 	}
+}
+
+// deliver menulis payload ke target tertentu, atau ke semua client jika
+// pkt.target nil. Nilai balik dipakai dispatch untuk menentukan hasil transaksi.
+func (h *hub) deliver(ctx context.Context, pkt packet) (written, failed int) {
+	if pkt.target != nil {
+		if h.write(ctx, pkt.target, pkt.payload) {
+			return 1, 0
+		}
+		return 0, 1
+	}
+
+	for _, c := range h.snapshot() {
+		if h.write(ctx, c, pkt.payload) {
+			written++
+		} else {
+			failed++
+		}
+	}
+
+	return written, failed
 }
 
 func (h *hub) handle(conn *websocket.Conn) {
@@ -126,47 +174,72 @@ func (h *hub) handle(conn *websocket.Conn) {
 			return
 		}
 
-		var incoming incomingMessage
-		if err := json.Unmarshal(data, &incoming); err != nil {
-			h.sendError(c, "Format pesan tidak valid.")
-			continue
-		}
-
-		content := strings.TrimSpace(incoming.Message)
-		if content == "" {
-			h.sendError(c, "Pesan tidak boleh kosong.")
-			continue
-		}
-		if utf8.RuneCountInString(content) > MaxMessageLength {
-			h.sendError(c, "Pesan terlalu panjang (maksimal 2000 karakter).")
-			continue
-		}
-
-		message := models.Message{
-			RoomID:    normalizeRoomID(incoming.RoomID),
-			UserID:    c.userID,
-			Username:  c.username,
-			Content:   content,
-			CreatedAt: time.Now().UTC(),
-		}
-		if err := message.Validate(); err != nil {
-			log.Printf("Invalid chat message: %v\n", err)
-			h.sendError(c, "Pesan tidak valid.")
-			continue
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), saveTimeout)
-		err = repository.InsertMessage(ctx, &message)
-		cancel()
-		if err != nil {
-			log.Printf("Failed to save chat message: %v\n", err)
-			// jangan broadcast: riwayat Mongo adalah sumber kebenaran.
-			h.sendError(c, "Pesan gagal disimpan, coba lagi.")
-			continue
-		}
-
-		h.broadcast <- packet{payload: dto.NewMessageResponse(message)}
+		h.processMessage(c, data)
 	}
+}
+
+// processMessage menangani satu pesan: validasi, simpan ke Mongo, lalu
+// broadcast. Setiap pesan dibungkus transaksi APM sendiri agar latensinya
+// terukur per pesan, bukan per koneksi yang bisa hidup berjam-jam.
+func (h *hub) processMessage(c *client, data []byte) {
+	ctx, tx := tracing.StartTransaction(context.Background(), "ws.message", "websocket")
+	result, outcome := "rejected", "unknown"
+	if tx != nil {
+		defer func() {
+			tx.Result = result
+			tx.Outcome = outcome
+			tx.End()
+		}()
+		tx.Context.SetUserID(strconv.FormatUint(uint64(c.userID), 10))
+		tx.Context.SetUsername(c.username)
+	}
+
+	var incoming incomingMessage
+	if err := json.Unmarshal(data, &incoming); err != nil {
+		h.sendError(c, "Format pesan tidak valid.")
+		return
+	}
+
+	content := strings.TrimSpace(incoming.Message)
+	if content == "" {
+		h.sendError(c, "Pesan tidak boleh kosong.")
+		return
+	}
+	if utf8.RuneCountInString(content) > MaxMessageLength {
+		h.sendError(c, "Pesan terlalu panjang (maksimal 2000 karakter).")
+		return
+	}
+
+	message := models.Message{
+		RoomID:    normalizeRoomID(incoming.RoomID),
+		UserID:    c.userID,
+		Username:  c.username,
+		Content:   content,
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := message.Validate(ctx); err != nil {
+		log.Printf("Invalid chat message: %v\n", err)
+		h.sendError(c, "Pesan tidak valid.")
+		return
+	}
+
+	if tx != nil {
+		tx.Context.SetLabel("room_id", message.RoomID)
+	}
+
+	saveCtx, cancel := context.WithTimeout(ctx, saveTimeout)
+	err := repository.InsertMessage(saveCtx, &message)
+	cancel()
+	if err != nil {
+		log.Printf("Failed to save chat message: %v\n", err)
+		// jangan broadcast: riwayat Mongo adalah sumber kebenaran.
+		h.sendError(c, "Pesan gagal disimpan, coba lagi.")
+		result, outcome = "save_failed", "failure"
+		return
+	}
+
+	h.broadcast <- packet{payload: dto.NewMessageResponse(message)}
+	result, outcome = "saved", "success"
 }
 
 func (h *hub) add(c *client) {
@@ -203,13 +276,23 @@ func (h *hub) sendError(c *client, message string) {
 	}
 }
 
-// write mengirim satu payload. Dipanggil hanya dari goroutine run.
-func (h *hub) write(c *client, payload any) {
+// write mengirim satu payload. Dipanggil hanya dari goroutine run. Nilai
+// kembali false berarti koneksi sudah tidak bisa dipakai dan sudah ditutup.
+func (h *hub) write(ctx context.Context, c *client, payload any) bool {
+	ctx, span := tracing.StartSpan(ctx, "ws.write", "websocket")
+	defer span.End()
+	span.Context.SetLabel("user_id", strconv.FormatUint(uint64(c.userID), 10))
+
 	_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 	if err := c.conn.WriteJSON(payload); err != nil {
+		span.Outcome = "failure"
+		apm.CaptureError(ctx, err).Send()
 		h.remove(c)
 		_ = c.conn.Close()
+		return false
 	}
+
+	return true
 }
 
 func normalizeRoomID(roomID string) string {
