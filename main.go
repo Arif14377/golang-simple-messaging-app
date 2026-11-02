@@ -12,6 +12,7 @@ import (
 	"github.com/Arif14377/golang-simple-messaging-app/bootstrap"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/database"
 	"github.com/Arif14377/golang-simple-messaging-app/pkg/env"
+	"github.com/Arif14377/golang-simple-messaging-app/pkg/tracing"
 )
 
 func main() {
@@ -34,6 +35,9 @@ func main() {
 		if err := database.DisconnectMongo(ctx); err != nil {
 			log.Printf("Failed to disconnect MongoDB: %v\n", err)
 		}
+
+		// Kirim sisa transaksi APM sebelum proses berhenti.
+		tracing.Close()
 	}()
 
 	address := fmt.Sprintf("%s:%s", env.GetEnv("APP_HOST", "localhost"), env.GetEnv("APP_PORT", "8888"))
